@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     # 2. 날짜 및 헤더 설정
     today = datetime.today().strftime("%Y-%m-%d")
-    today_str = datetime.today().strftime("%Y%m%d")
+    today_str = today.replace("-", "")
     ua = UserAgent()
     headers = {"User-Agent": ua.random}
 
