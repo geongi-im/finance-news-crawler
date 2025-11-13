@@ -49,15 +49,10 @@ pip install -r requirements.txt
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
 TELEGRAM_CHAT_TEST_ID=your_test_chat_id
+BASE_URL=http://localhost
 ```
 
-### 3. API 서버 설정
-
-`utils/api_util.py`에서 API 서버 URL을 설정하세요:
-
-```python
-self.base_url = "http://your-api-server/api"
-```
+`BASE_URL`에는 API 서버의 루트 도메인(예: `http://localhost`, `https://example.com`)을 입력하면 됩니다.  
 
 ## 사용법
 
