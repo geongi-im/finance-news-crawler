@@ -174,19 +174,40 @@ class ApiUtil:
             "title": title,
             "source_url": source_url
         }
-        response = requests.post(url, headers=self.headers, json=data)
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=data, timeout=30)
+            
+            # 응답 확인 및 한글 디코딩
+            response.encoding = 'utf-8'
+            
+            # 응답 상태 코드 확인
+            if response.status_code != 200:
+                error_msg = f"API 요청 실패 (상태 코드: {response.status_code})\n기사 날짜: {news_date}\n회사: {company}\n제목: {title}\n응답: {response.text}"
+                self.logger.error(error_msg)
+                raise ApiError(response.status_code, error_msg)
+            
+            # JSON 파싱 시도
+            try:
+                response_data = response.json()
+            except ValueError:
+                error_msg = f"JSON 응답 파싱 실패\n기사 날짜: {news_date}\n회사: {company}\n제목: {title}\n응답 상태 코드: {response.status_code}\n응답 내용: {response.text}"
+                self.logger.error(error_msg)
+                raise ApiError(response.status_code, error_msg)
 
-        response.encoding = 'utf-8'
-        response_data = response.json()
+            self.logger.debug(f"API 응답: {response_data}")
 
-        self.logger.debug(f"API 응답: {response_data}")
+            if not response_data.get('success', False):
+                error_msg = f"상위 뉴스 생성 실패\n기사 날짜: {news_date}\n회사: {company}\n제목: {title}\n응답: {response.text}"
+                self.logger.error(error_msg)
+                raise ApiError(response.status_code, error_msg)
 
-        if not response_data.get('success', False):
-            error_msg = f"상위 뉴스 생성 실패\n기사 날짜: {news_date}\n회사: {company}\n제목: {title}\n응답: {response.text}"
+            self.logger.info(f"상위 뉴스 생성 성공 - 기사 날짜: {news_date}\n회사: {company}\n제목: {title}")
+            
+        except requests.RequestException as e:
+            error_msg = f"API 요청 중 오류 발생\n기사 날짜: {news_date}\n회사: {company}\n제목: {title}\n오류: {str(e)}"
             self.logger.error(error_msg)
-            raise ApiError(response.status_code, error_msg)
-
-        self.logger.info(f"상위 뉴스 생성 성공 - 기사 날짜: {news_date}\n회사: {company}\n제목: {title}")
+            raise ApiError(500, error_msg)
 
 if __name__ == "__main__":
     # API 테스트
