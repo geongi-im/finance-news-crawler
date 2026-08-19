@@ -53,25 +53,41 @@ if __name__ == "__main__":
     ]
 
     # 3. 기사 링크 크롤링 → 내용 크롤링
-    try:
-        for press in press_code_list:
+    # 언론사 단위로 예외를 처리해 한 곳이 실패해도 나머지 언론사는 계속 수집한다
+    success_list = []
+    fail_list = []
+
+    for press in press_code_list:
+        try:
             article_url, title = getFirstArticleInfo(press["code"], today_str, headers)
-            logger.info(f"✅ {press['name']} 오늘의 뉴스 1면 기사 링크: {article_url} 제목: {title}")
+        except Exception as e:
+            fail_list.append(press["name"])
+            logger.error(f"❌ {press['name']} 1면 기사 크롤링 실패: {e}")
+            continue
 
-            # 오늘의 뉴스 1면 API 생성
-            try:
-                logger.info("오늘의 뉴스 1면 API 생성 시작")
-                api_util.create_top_news(
-                    news_date=today,
-                    company=press["name"],
-                    title=title,
-                    source_url=article_url
-                )
-                logger.info("오늘의 뉴스 1면 API 생성 완료")
-            except ApiError as e:
-                error_message = f"❌ 오늘의 뉴스 1면 API 생성 오류\n\n{e.message}"
-                telegram.send_test_message(error_message)
-                logger.error(f"오늘의 뉴스 1면 API 생성 오류: {e.message}")
+        logger.info(f"✅ {press['name']} 오늘의 뉴스 1면 기사 링크: {article_url} 제목: {title}")
 
-    except Exception as e:
-        logger.error(f"❌ 에러 발생: {e}")
+        # 오늘의 뉴스 1면 API 생성
+        try:
+            logger.info("오늘의 뉴스 1면 API 생성 시작")
+            api_util.create_top_news(
+                news_date=today,
+                company=press["name"],
+                title=title,
+                source_url=article_url
+            )
+            logger.info("오늘의 뉴스 1면 API 생성 완료")
+            success_list.append(press["name"])
+        except ApiError as e:
+            fail_list.append(press["name"])
+            error_message = f"❌ 오늘의 뉴스 1면 API 생성 오류\n\n{e.message}"
+            telegram.send_test_message(error_message)
+            logger.error(f"오늘의 뉴스 1면 API 생성 오류: {e.message}")
+        except Exception as e:
+            fail_list.append(press["name"])
+            logger.error(f"❌ {press['name']} 오늘의 뉴스 1면 API 생성 중 예상치 못한 오류: {e}")
+
+    logger.info(
+        f"📊 처리 완료 - 성공 {len(success_list)}/{len(press_code_list)}"
+        + (f" | 실패: {', '.join(fail_list)}" if fail_list else "")
+    )
