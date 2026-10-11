@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import requests
 import base64
 import time
@@ -10,6 +11,22 @@ from fake_useragent import UserAgent
 from utils.api_util import ApiUtil, ApiError
 from utils.logger_util import LoggerUtil
 from utils.telegram_util import TelegramUtil
+
+# 네이버 언론사 코드와 언론사명 매핑
+# 조간(전날 17-19시에 지면이 올라옴, 머니투데이는 당일 새벽에 올라오는 날도 있음)
+#   014 파이낸셜뉴스 / 008 머니투데이 / 015 한국경제 / 009 매일경제 / 011 서울경제
+# 석간(당일 오전 8-12시에 지면이 올라옴)
+#   016 헤럴드경제 / 277 아시아경제
+PRESS_NAME_MAP = {
+    "014": "파이낸셜뉴스",
+    "008": "머니투데이",
+    "015": "한국경제",
+    "009": "매일경제",
+    "011": "서울경제",
+    "016": "헤럴드경제",
+    "277": "아시아경제",
+}
+
 
 def getFirstArticleInfo(press_code, date, headers):
     """신문 1면 페이지에서 첫 번째 기사 제목, 링크를 추출"""
@@ -32,25 +49,45 @@ def getFirstArticleInfo(press_code, date, headers):
     return link_tag["href"], title
 
 
+def resolvePressList(codes):
+    """실행 인자로 받은 언론사 코드를 수집 대상 목록으로 변환"""
+    # 인자가 없으면 등록된 언론사를 전부 수집한다
+    target_codes = codes if codes else list(PRESS_NAME_MAP)
+
+    press_list = []
+    unknown_codes = []
+    for code in target_codes:
+        name = PRESS_NAME_MAP.get(code)
+        if name:
+            press_list.append({"code": code, "name": name})
+        else:
+            unknown_codes.append(code)
+
+    return press_list, unknown_codes
+
+
 if __name__ == "__main__":
     logger = LoggerUtil().get_logger()
     api_util = ApiUtil()
     telegram = TelegramUtil()
+
+    # 1. 수집 대상 언론사 결정 (실행 인자로 언론사 코드를 넘긴다)
+    press_code_list, unknown_codes = resolvePressList(sys.argv[1:])
+
+    for code in unknown_codes:
+        logger.error(f"❌ 알 수 없는 언론사 코드: {code}")
+
+    if not press_code_list:
+        logger.error("🛑 수집할 언론사가 없습니다. 실행 인자의 언론사 코드를 확인하세요.")
+        sys.exit(1)
+
+    logger.info(f"수집 대상 언론사: {', '.join(press['name'] for press in press_code_list)}")
 
     # 2. 날짜 및 헤더 설정
     today = datetime.today().strftime("%Y-%m-%d")
     today_str = today.replace("-", "")
     ua = UserAgent()
     headers = {"User-Agent": ua.random}
-
-    #014 파이낸셜뉴스 008 머니투데이 015 한국경제 009 매일경제 016 헤럴드경제
-    press_code_list = [
-        {"code": "014", "name": "파이낸셜뉴스"},
-        {"code": "008", "name": "머니투데이"},
-        {"code": "015", "name": "한국경제"},
-        {"code": "009", "name": "매일경제"},
-        {"code": "011", "name": "서울경제"}
-    ]
 
     # 3. 기사 링크 크롤링 → 내용 크롤링
     # 언론사 단위로 예외를 처리해 한 곳이 실패해도 나머지 언론사는 계속 수집한다
